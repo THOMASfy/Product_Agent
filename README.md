@@ -8,118 +8,40 @@ Reusable agent skills and multi-agent setups, packaged for [OpenCode](https://op
 | ----- | ------- | ----------- |
 | `marketing-offer-calendar` | [`marketing-offer-calendar.skills`](./marketing-offer-calendar.skills) | Sync marketing offers (Launch Notices) from a Feishu wiki space into a Feishu calendar and report upcoming expiries. |
 | `artifact-template-productization-request-materials` | [`artifact-template-productization-request-materials.skills`](./artifact-template-productization-request-materials.skills) | Turn group cloud documents into a 产品化请示材料 document and deliver it as a Feishu cloud document, with a 待补充 questionnaire and in-place updates. |
-| `business-plan` (商业计划书) | [`.opencode/skills/business-plan/`](./.opencode/skills/business-plan/SKILL.md) | Produce a formal Chinese business plan (BP / 融资计划书 / 项目计划书 / 市场分析报告) in a fixed five-chapter structure, exportable to Word/PDF. Scoped to the `plm-launch` agent. |
 
 ---
 
-# PLM Multi-Agent Supervisor
+# 产品管理系统 Multi-Agent (PM)
 
-A **supervisor** multi-agent structure for Product Lifecycle Management (PLM),
-built on OpenCode and running on the `myapi/deepseek-v4-free` model.
+An OpenCode-native implementation of the **产品管理系统** four-layer architecture:
+**1 lead agent (`pm-brain`, A0) + 16 sub-agents (5 modules) + 18 skills (4 categories) + data & knowledge layer.**
 
-## Architecture
+| Layer | Where |
+| --- | --- |
+| ① Lead Agent | `.opencode/agents/pm-brain.md` |
+| ② Sub-agents (16) | `.opencode/agents/pm-a*.md` |
+| ③ Skills (18) | `.opencode/skills/s*/SKILL.md` |
+| ④ Data & knowledge | documented in [`docs/pm-agent-system.md`](./docs/pm-agent-system.md) |
 
-One primary agent decomposes a request and delegates to specialized subagents.
-It never does specialist work itself, which keeps each concern focused and the
-synthesis honest.
+Modules: 洞察与规划 `A11–A13` · 开发与发布 `A21–A23` · 运营 `A31–A32` · 销售 `A41–A44` · 支撑 `A51–A54`.
 
-```
-                 ┌──────────────────────┐
-   user ───────▶ │    plm-supervisor    │  primary agent
-                 │  (route orchestrator)│
-                 └──────────┬───────────┘
-                            │ subagent tool
-      ┌───────────┬─────────┼─────────┬───────────┬───────────┐
-      ▼           ▼         ▼         ▼           ▼           ▼           ▼
- requirements  design   sourcing  manufacturing quality   launch   sustainment
-      │           │         │         │           │           │           │
-      └───────────┴─────────┴─────────┴───────────┴───────────┴───────────┘
-                     structured findings back to supervisor
-```
+- **Routing**: A0 scores each sub-agent by keyword hits, orders by business chain
+  (洞察→研发→发布→运营→销售→支撑), and falls back to
+  `A11 → A13 → A21 → A23 → A54` when nothing matches.
+- **Capability matrix**: each sub-agent may load only its mapped skills — enforced
+  with `skill` permission rules (`deny *`, then allow the mapped IDs).
+- **No recursion**: sub-agents cannot launch other sub-agents.
+- **Aggregation**: a Markdown《产品任务报告》(执行过程 → 综合结论 → 建议下一步 → 技能调用统计).
 
-| Layer | Agent | Mode | Role |
-| --- | --- | --- | --- |
-| Supervisor | `plm-supervisor` | primary | Frames, routes, verifies, synthesizes |
-| Specialist | `plm-requirements` | subagent | Voice of customer, PRD, requirements |
-| Specialist | `plm-design` | subagent | Concept, specs, BOM, DFM/DFA |
-| Specialist | `plm-sourcing` | subagent | Suppliers, make-vs-buy, cost, risk |
-| Specialist | `plm-manufacturing` | subagent | Process, capacity, yield, ramp |
-| Specialist | `plm-quality` | subagent | QA/QC, FMEA, compliance, release |
-| Specialist | `plm-launch` | subagent | Readiness, pricing, channels, rollout — owns the `business-plan` skill |
-| Specialist | `plm-sustainment` | subagent | Service, ECO, obsolescence, EOL |
-
-## Files
-
-```
-opencode.jsonc                          # project config (default agent, model)
-.opencode/agents/plm-supervisor.md      # primary orchestrator
-.opencode/agents/plm-requirements.md    # specialists (subagents)
-.opencode/agents/plm-design.md
-.opencode/agents/plm-sourcing.md
-.opencode/agents/plm-manufacturing.md
-.opencode/agents/plm-quality.md
-.opencode/agents/plm-launch.md
-.opencode/agents/plm-sustainment.md
-.opencode/commands/plm.md               # /plm entry point
-.opencode/skills/business-plan/SKILL.md # business-plan skill (plm-launch only)
-```
-
-## Usage
-
-Open OpenCode in this directory. `plm-supervisor` is the default agent, so a
-normal prompt is already routed through the supervisor. Or use the command:
+### Usage
 
 ```text
-/plm design and cost a rugged outdoor power bank for the EU market
+/pm 为新产品「智能报表助手」完成需求梳理与市场趋势分析，制定研发排期与发布推广方案，并评估主要风险
 ```
 
-The supervisor will:
-
-1. **Frame** the request and pick the relevant stages.
-2. **Delegate** to the `plm-*` specialists in parallel where independent.
-3. **Verify** returns for conflicts (e.g. sourcing cost vs. launch price).
-4. **Synthesize** one integrated recommendation with risks and next steps.
-
-You can also drive a single stage directly, e.g.:
-
-```text
-Use the plm-quality subagent to list compliance requirements for a battery product in the EU.
-```
-
-## How routing and isolation work
-
-- The supervisor may only launch agents matching `plm-*`
-  (`subagent` permission rules in `opencode.jsonc` and the agent frontmatter).
-- Specialists **cannot** launch further subagents, preventing recursion.
-- Specialists are **read-only** (edit and shell denied) so analysis is safe.
-  The supervisor alone may write final deliverables.
-- Each specialist runs in a fresh child session with its own system prompt, so
-  context stays clean and focused.
-
-## Scoped skills
-
-The `business-plan` skill (商业计划书) is **only** available to the `plm-launch`
-subagent:
-
-- `opencode.jsonc` globally denies the `skill` action for `business-plan`, so no
-  other agent sees it.
-- `plm-launch.md` re-allows `business-plan`, and its prompt tells it to load the
-  skill for BP/funding/project-plan requests.
-
-Last matching permission rule wins, and global rules apply before agent rules —
-that is why the global deny plus the agent allow scopes the skill to one agent.
-To expose it to another agent, add the same allow rule there; to expose it
-everywhere, delete the global deny rule.
-
-## Extending
-
-- **Add a stage:** create `.opencode/agents/plm-<name>.md` with `mode: subagent`
-  and add it to the routing table in `plm-supervisor.md`. It is auto-allowed by
-  the `plm-*` rule.
-- **Allow specialists to write:** remove the `edit` deny rule from a specialist.
-- **Tune effort:** change the model variant (`#low`, `#medium`, `#high`) or
-  `steps` in any agent's frontmatter.
-- **Change the model:** update `model` in `opencode.jsonc` and the agent files.
+`pm-brain` is the default agent, so a normal prompt is already routed through it,
+or use the `/pm` command. Full agent/skill roster and the 16×18 capability matrix:
+[`docs/pm-agent-system.md`](./docs/pm-agent-system.md).
 
 ---
 
