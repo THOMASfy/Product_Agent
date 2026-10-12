@@ -1,0 +1,23 @@
+{
+  // Product Lifecycle Management (PLM) multi-agent supervisor setup.
+  // The PLM supervisor is the primary agent; the plm-* specialists are subagents.
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "plm-supervisor",
+  "model": "myapi/deepseek-v4-free#medium",
+  // Hide the business-plan skill from every agent by default. Only
+  // plm-launch re-allows it below, so it is scoped to that subagent.
+  "permissions": [
+    { "action": "skill", "resource": "business-plan", "effect": "deny" }
+  ],
+  "agents": {
+    // Safety net: specialists may only be launched by the supervisor, never
+    // by each other. Individual agent files refine this further.
+    "plm-supervisor": {
+      "permissions": [
+        { "action": "shell", "resource": "*", "effect": "deny" },
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "subagent", "resource": "plm-*", "effect": "allow" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Node / build artifacts
+node_modules/
+dist/
+build/
+
+# Secrets and local env
+.env
+.env.*
+*.local
+*.pem
+
+# OpenCode local runtime
+.opencode/cache/
+.opencode/logs/
