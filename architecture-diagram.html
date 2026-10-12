@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>产品管理系统 · 多 Agent 架构</title>
+<style>
+  :root{
+    --insight:#2563eb; --dev_release:#059669; --operations:#ea580c; --sales:#7c3aed; --support:#0d9488;
+    --basic:#0891b2; --core:#e11d48; --rd_ops:#65a30d; --digex:#ca8a04;
+    --ink:#0f172a; --sub:#64748b; --line:#e2e8f0; --bg:#f1f5f9;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;
+    background:var(--bg); color:var(--ink); min-width:1000px;
+  }
+  /* ---------- 顶部 ---------- */
+  header{background:linear-gradient(135deg,#1e293b,#312e81); color:#fff; padding:22px 32px 18px;}
+  header h1{font-size:22px; letter-spacing:1px;}
+  header .sub{font-size:13px; color:#c7d2fe; margin-top:6px;}
+  .stats{display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+  .stats b{background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.22);
+    padding:4px 12px; border-radius:999px; font-size:12px; font-weight:600; color:#e0e7ff;}
+  /* ---------- 工具栏 ---------- */
+  .toolbar{position:sticky; top:0; z-index:40; background:#fff; border-bottom:1px solid var(--line);
+    padding:10px 32px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .btn{border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 14px;
+    font-size:13px; cursor:pointer; color:var(--ink); transition:.15s;}
+  .btn:hover{border-color:#94a3b8;}
+  .btn.active{background:#eef2ff; border-color:#6366f1; color:#4338ca; font-weight:600;}
+  .search{margin-left:auto; display:flex; align-items:center; gap:6px;}
+  .search input{border:1px solid var(--line); border-radius:8px; padding:6px 12px; font-size:13px; width:220px;}
+  .search input:focus{outline:2px solid #c7d2fe; border-color:#818cf8;}
+  /* ---------- 舞台 ---------- */
+  .stage-outer{overflow-x:auto; padding:24px 32px 8px;}
+  .diagram{position:relative; min-width:1440px; max-width:1720px; margin:0 auto;}
+  #linkSvg{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:0;}
+  .layer{position:relative; z-index:1; display:grid; grid-template-columns:118px 1fr; gap:14px; margin-bottom:6px;}
+  .layer-label{display:flex; flex-direction:column; justify-content:center; gap:4px;
+    border-right:3px solid #cbd5e1; padding-right:10px;}
+  .layer-label b{font-size:15px;}
+  .layer-label span{font-size:12px; color:var(--sub);}
+  .layer-gap{display:flex; justify-content:center; gap:40px; padding:10px 0; z-index:1; position:relative;}
+  .layer-gap span{font-size:12px; color:var(--sub); background:#fff; border:1px dashed #cbd5e1;
+    border-radius:999px; padding:3px 14px;}
+  /* ---------- 卡片 ---------- */
+  .node{background:#fff; border:1px solid var(--line); border-radius:9px; padding:8px 10px;
+    display:flex; flex-direction:column; gap:3px; cursor:pointer; transition:.15s;
+    box-shadow:0 1px 2px rgba(15,23,42,.05);}
+  .node:hover{transform:translateY(-2px); box-shadow:0 6px 16px rgba(15,23,42,.12); z-index:5;}
+  .node .badge{font-size:11px; font-weight:800; letter-spacing:.5px; color:var(--mc,#475569);}
+  .node .nname{font-size:13px; line-height:1.35;}
+  .node.hl{border-color:#4f46e5; box-shadow:0 0 0 3px rgba(79,70,229,.18); transform:translateY(-2px);}
+  .node.dim{opacity:.22;}
+  /* A0 */
+  .node.n-lead{grid-column:1/-1; justify-self:center; flex-direction:row; align-items:center; gap:12px;
+    background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; border:none;
+    padding:16px 34px; border-radius:14px; box-shadow:0 10px 28px rgba(79,70,229,.35); margin-bottom:8px;}
+  .node.n-lead .badge{color:#e0e7ff; font-size:13px;}
+  .node.n-lead .nname{font-size:19px; font-weight:700;}
+  .node.n-lead .lead-sub{font-size:12px; color:#c7d2fe;}
+  .node.n-lead:hover{transform:translateY(-3px) scale(1.01);}
+  /* 模块分组 */
+  .modules-row{display:flex; gap:14px; align-items:stretch;}
+  .module{flex:1; border:1px solid var(--line); border-top:4px solid var(--mc);
+    border-radius:12px; background:#fff; padding:10px; box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .module.hl{box-shadow:0 0 0 3px rgba(79,70,229,.18);}
+  .module-title{font-weight:700; font-size:14px; color:var(--mc); margin-bottom:8px;
+    display:flex; justify-content:space-between; align-items:baseline;}
+  .module-title span{font-size:11px; color:var(--sub); font-weight:400;}
+  .module-agents{display:grid; gap:8px;}
+  .module-agents .node{--mc:var(--mcolor);}
+  /* 技能分类 */
+  .cats-row{display:flex; gap:14px; align-items:stretch;}
+  .skillcat{border:1px solid var(--line); border-left:5px solid var(--sc); border-radius:12px;
+    background:#fff; padding:10px; box-shadow:0 1px 3px rgba(15,23,42,.06);}
+  .skillcat.hl{box-shadow:0 0 0 3px rgba(79,70,229,.18);}
+  .skillcat-title{font-weight:700; font-size:14px; color:var(--sc); margin-bottom:8px;
+    display:flex; justify-content:space-between; align-items:baseline;}
+  .skillcat-title span{font-size:11px; color:var(--sub); font-weight:400;}
+  .skillgrid{display:grid; grid-template-columns:repeat(2,minmax(128px,1fr)); gap:8px;}
+  .skillgrid.wide3{grid-template-columns:repeat(3,minmax(110px,1fr));}
+  .skillcat .node{--mc:var(--sc);}
+  /* 库与来源 */
+  .libs-row{display:flex; gap:14px; justify-content:center; margin-bottom:12px;}
+  .node.n-library{--mc:#334155; min-width:220px; background:linear-gradient(180deg,#334155,#1e293b);
+    color:#fff; border:none; padding:12px 18px; align-items:center; text-align:center;
+    border-radius:12px; box-shadow:0 6px 18px rgba(30,41,59,.28);}
+  .node.n-library .badge{color:#94a3b8;}
+  .node.n-library .nname{font-size:15px; font-weight:700;}
+  .node.n-library .libsub{font-size:11px; color:#cbd5e1;}
+  .sources-row{display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+  .node.n-source{--mc:#7c2d12; background:#fffbeb; border-style:dashed; min-width:150px; align-items:center; text-align:center;}
+  .node.n-source .stype{font-size:10px; color:#b45309; border:1px solid #fcd34d; border-radius:999px;
+    padding:1px 8px; align-self:center;}
+  /* ---------- 连线 ---------- */
+  .lk{fill:none; stroke-linecap:round; transition:opacity .15s, stroke-width .15s;}
+  .lk-lead{stroke:#6366f1; stroke-width:2; opacity:.5;}
+  .lk-skill{stroke:#94a3b8; stroke-width:1.3; opacity:.16;}
+  .lk-lib{stroke:#0ea5e9; stroke-width:1.3; opacity:.18;}
+  .lk-src{stroke:#f59e0b; stroke-width:1.4; opacity:.22;}
+  .lk-dep{stroke:#a78bfa; stroke-width:1.4; opacity:.4; stroke-dasharray:5 5;}
+  .lk.hl{stroke:#4338ca; stroke-width:2.6; opacity:1;}
+  .lk.hl.lk-src{stroke:#b45309;}
+  .lk.hl.lk-lib{stroke:#0369a1;}
+  .lk.hl.lk-lead{stroke:#4338ca;}
+  .lk.dim{opacity:.05 !important;}
+  body.all-links .lk{opacity:.55;}
+  body.flow .lk-src{opacity:.95; stroke-width:2.2; stroke-dasharray:7 6; animation:flowUp 1.1s linear infinite;}
+  body.flow .lk-lib{opacity:.9; stroke-width:2; stroke-dasharray:7 6; animation:flowUp 1.3s linear infinite;}
+  body.flow .lk-dep{opacity:.8; animation:flowUp 1.5s linear infinite;}
+  body.flow .lk-skill, body.flow .lk-lead{opacity:.07;}
+  @keyframes flowUp{to{stroke-dashoffset:-26;}}
+  /* ---------- 图例 ---------- */
+  .legend{max-width:1720px; margin:6px auto 0; padding:10px 32px 4px; display:flex; gap:18px;
+    flex-wrap:wrap; font-size:12px; color:var(--sub); position:relative; z-index:2;}
+  .legend .lg{display:flex; align-items:center; gap:5px;}
+  .legend i{width:12px; height:12px; border-radius:3px; display:inline-block;}
+  .legend .lgroup{display:flex; gap:12px; flex-wrap:wrap; padding:4px 0;}
+  /* ---------- 详情面板 ---------- */
+  #panel{position:fixed; top:0; right:0; height:100vh; width:360px; background:#fff; z-index:60;
+    box-shadow:-12px 0 40px rgba(15,23,42,.18); transform:translateX(105%); transition:.25s;
+    display:flex; flex-direction:column;}
+  #panel.open{transform:translateX(0);}
+  #panel .p-head{padding:16px 20px; border-bottom:1px solid var(--line); display:flex;
+    justify-content:space-between; align-items:flex-start; background:#f8fafc;}
+  #panel .p-head h3{font-size:16px;}
+  #panel .p-head .p-id{font-size:12px; color:var(--sub); font-weight:700; letter-spacing:.5px;}
+  #panel .close{border:none; background:none; font-size:20px; cursor:pointer; color:var(--sub); line-height:1;}
+  #panel .p-body{padding:16px 20px; overflow-y:auto; font-size:13px; line-height:1.7;}
+  #panel .p-sec{margin-bottom:16px;}
+  #panel .p-sec h4{font-size:12px; color:var(--sub); margin-bottom:6px; letter-spacing:.5px;}
+  #panel .p-tag{display:inline-block; background:#eef2ff; color:#4338ca; border:1px solid #c7d2fe;
+    border-radius:999px; padding:2px 10px; margin:2px 4px 2px 0; font-size:12px; cursor:pointer;}
+  #panel .p-tag:hover{background:#e0e7ff;}
+  #panel .p-desc{color:#334155;}
+  .footnote{text-align:center; font-size:12px; color:var(--sub); padding:16px 32px 28px;}
+  @media print{
+    .toolbar,#panel,.layer-gap{display:none;}
+    body{background:#fff;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>产品管理系统 · 多 Agent 架构</h1>
+  <div class="sub">A0-产品大脑统一协调 · 指令自上而下分发 · 数据自下而上输送</div>
+  <div class="stats">
+    <b>1 主 Agent</b><b>16 子 Agent</b><b>5 业务模块</b><b>18 Skills</b><b>4 技能类别</b><b>3 库</b><b>6 数据来源</b>
+  </div>
+</header>
+
+<div class="toolbar">
+  <button class="btn" id="btnAll">显示全部连线</button>
+  <button class="btn" id="btnFlow">数据流模式</button>
+  <button class="btn" id="btnReset">重置视图</button>
+  <div class="search">
+    <span style="font-size:13px;color:var(--sub)">🔍</span>
+    <input id="searchBox" type="text" placeholder="搜索 Agent / 技能 / 库 / 来源…">
+  </div>
+</div>
+
+<div class="stage-outer">
+  <div class="diagram" id="diagram">
+    <svg id="linkSvg"></svg>
+
+    <!-- 第 1 层：核心 Agent 层 -->
+    <section class="layer" id="layer1">
+      <div class="layer-label"><b>① 核心 Agent 层</b><span>1 个主 Agent</span></div>
+      <div class="layer-body">
+        <div class="node n-lead" data-id="A0">
+          <span class="badge">A0</span>
+          <span class="nname">🧠 产品大脑</span>
+          <span class="lead-sub">Lead Agent · 任务分解 · 路由分发 · 结果聚合</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="layer-gap">
+      <span>▼ 指令流：任务分解与分发</span>
+      <span>▲ 数据流：洞察与结果回流</span>
+    </div>
+
+    <!-- 第 2 层：子 Agent 层 -->
+    <section class="layer">
+      <div class="layer-label"><b>② 子 Agent 层</b><span>16 个 · 5 模块</span></div>
+      <div class="layer-body modules-row" id="modulesRow"></div>
+    </section>
+
+    <div class="layer-gap">
+      <span>▼ Agent 调用技能</span>
+      <span>▲ 技能产出回流 Agent</span>
+    </div>
+
+    <!-- 第 3 层：Skills 层 -->
+    <section class="layer" data-id="skillsLayer" id="skillsLayer">
+      <div class="layer-label"><b>③ Skills 层</b><span>18 项 · 4 类</span></div>
+      <div class="layer-body cats-row" id="catsRow"></div>
+    </section>
+
+    <div class="layer-gap">
+      <span>▼ 技能读取三大库</span>
+      <span>▲ 数据自底层向上输送</span>
+    </div>
+
+    <!-- 第 4 层：数据与知识层 -->
+    <section class="layer">
+      <div class="layer-label"><b>④ 数据与知识层</b><span>3 库 · 6 来源</span></div>
+      <div class="layer-body">
+        <div class="libs-row" id="libsRow"></div>
+        <div class="sources-row" id="sourcesRow"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="lgroup" id="legendModules"></div>
+  <div class="lgroup" id="legendCats"></div>
+  <div class="lgroup">
+    <span class="lg"><i style="background:#6366f1"></i>主控连线</span>
+    <span class="lg"><i style="background:#94a3b8"></i>Agent→技能</span>
+    <span class="lg"><i style="background:#0ea5e9"></i>技能→库</span>
+    <span class="lg"><i style="background:#f59e0b"></i>来源→库</span>
+  </div>
+</div>
+
+<div class="footnote">
+  注：Agent→Skills 与 Skill→数据层的调用关系为设计假设，可通过配置调整（对应工程实现 pm-agent-system/config/*.json）。
+</div>
+
+<aside id="panel">
+  <div class="p-head">
+    <div>
+      <div class="p-id" id="pId"></div>
+      <h3 id="pName"></h3>
+    </div>
+    <button class="close" id="pClose" title="关闭">✕</button>
+  </div>
+  <div class="p-body" id="pBody"></div>
+</aside>
+
+<script>
+/* ================================================================
+ * 数据定义：44 个节点（1 主Agent + 16 子Agent + 18 Skills + 3 库 + 6 来源）
+ * ================================================================ */
+const DATA = {
+  modules: [
+    { key:"insight", name:"洞察与规划", agents:[
+      { id:"A11", name:"需求分析智能体",   skills:["S11","S41"] },
+      { id:"A12", name:"竞品分析智能体",   skills:["S12","S13"] },
+      { id:"A13", name:"市场趋势分析智能体", skills:["S13","S44"] },
+    ]},
+    { key:"dev_release", name:"开发与发布", agents:[
+      { id:"A21", name:"研发管理智能体", skills:["S42","S43"] },
+      { id:"A22", name:"测试管理智能体", skills:["S45","S43"] },
+      { id:"A23", name:"产品发布智能体", skills:["S32","S34"] },
+    ]},
+    { key:"operations", name:"运营", agents:[
+      { id:"A31", name:"运营数据智能体", skills:["S44"] },
+      { id:"A32", name:"用户反馈智能体", skills:["S41"] },
+    ]},
+    { key:"sales", name:"销售", agents:[
+      { id:"A41", name:"销售线索智能体",   skills:["S13","S33"] },
+      { id:"A42", name:"销售跟进智能体",   skills:["S31","S41"] },
+      { id:"A43", name:"销售转化智能体",   skills:["S31","S34"] },
+      { id:"A44", name:"销售业绩分析智能体", skills:["S44"] },
+    ]},
+    { key:"support", name:"支撑", agents:[
+      { id:"A51", name:"产品支持智能体",     skills:["S25"] },
+      { id:"A52", name:"知识管理智能体",     skills:["S26","S41"] },
+      { id:"A53", name:"合作伙伴管理智能体", skills:["S21","S22"] },
+      { id:"A54", name:"风险管理智能体",     skills:["S23","S24"] },
+    ]},
+  ],
+  skillCats: [
+    { key:"basic", name:"基础能力", grid:"", skills:[
+      { id:"S11", name:"需求分析skills",       libs:["知识库"] },
+      { id:"S12", name:"竞品分析skills",       libs:["知识库"] },
+      { id:"S13", name:"市场调研skills",       libs:["知识库","数据库"] },
+    ]},
+    { key:"core", name:"核心能力", grid:"", skills:[
+      { id:"S21", name:"合作伙伴评估skills",     libs:["知识库"] },
+      { id:"S22", name:"合作伙伴管理skills",     libs:["知识库"] },
+      { id:"S23", name:"风险评估skills",         libs:["数据库","知识库"] },
+      { id:"S24", name:"风险监控与应对skills",   libs:["数据库","知识库"] },
+      { id:"S25", name:"产品支持评价skills",     libs:["数据库"] },
+      { id:"S26", name:"知识管理skills",         libs:["知识库"] },
+    ]},
+    { key:"rd_ops", name:"研发与运营", grid:"", skills:[
+      { id:"S31", name:"商业计划书撰写skills", libs:["知识库"] },
+      { id:"S32", name:"产品化包装材料skills", libs:["知识库"] },
+      { id:"S33", name:"产品宣传材料skills",   libs:["知识库"] },
+      { id:"S34", name:"推广文案skills",       libs:["知识库"] },
+    ]},
+    { key:"digex", name:"工具类（DIGEX）", grid:"", skills:[
+      { id:"S41", name:"飞书文档解读skills",     libs:["知识库"] },
+      { id:"S42", name:"会议纪要skills",         libs:["知识库"] },
+      { id:"S43", name:"产品管理平台对接skills", libs:["数据库"] },
+      { id:"S44", name:"BI大屏数据调取skills",   libs:["数据库"] },
+      { id:"S45", name:"测试反馈数据读取skills", libs:["数据库"] },
+    ]},
+  ],
+  libraries: [
+    { id:"知识库",  sub:"文档 · 飞书信息 · 治理后的个人经验" },
+    { id:"数据库",  sub:"产品管理平台 · 工单系统 · FineBI" },
+    { id:"skills库", sub:"技能定义 · 版本 · 调用统计" },
+  ],
+  libSources: {
+    "知识库": ["产品知识文档","飞书进程信息","个人经验"],
+    "数据库": ["产品管理平台","工单系统","FineBI"],
+    "skills库": [],
+  },
+  sources: [
+    { id:"产品知识文档", type:"文档" },
+    { id:"产品管理平台", type:"平台" },
+    { id:"工单系统",     type:"平台" },
+    { id:"FineBI",       type:"BI" },
+    { id:"飞书进程信息", type:"协作" },
+    { id:"个人经验",     type:"人工" },
+  ],
+  desc: {
+    A0:"全局协调者：接收产品目标，拆解任务并路由给子 Agent，聚合各模块结果，维护全局上下文与决策记忆。",
+    A11:"收集并结构化产品需求，输出需求池与优先级建议。",
+    A12:"跟踪竞品动态，输出竞品对比矩阵与差异化机会。",
+    A13:"分析市场趋势与行业数据，输出趋势研判报告。",
+    A21:"管理研发排期、需求流转与版本计划。",
+    A22:"跟踪测试执行与缺陷收敛，把控发布质量。",
+    A23:"组织产品发布，产出包装与发布材料。",
+    A31:"拉取并解读运营核心指标，发现异常与增长点。",
+    A32:"聚合用户反馈与工单舆情，提炼产品改进点。",
+    A41:"识别与筛选潜在销售线索。",
+    A42:"管理销售跟进节奏与客户触达材料。",
+    A43:"制定转化策略，输出商务方案与文案。",
+    A44:"分析销售业绩与漏斗，输出复盘报告。",
+    A51:"处理产品支持请求，评估支持质量。",
+    A52:"沉淀、检索与分发组织知识。",
+    A53:"评估与管理合作伙伴关系。",
+    A54:"识别、评估并持续监控业务风险。",
+    S11:"对原始需求进行清洗、分类、优先级评估，输出结构化需求文档。",
+    S12:"构建竞品对比维度，输出竞品矩阵与策略建议。",
+    S13:"设计调研框架，汇总市场规模、用户画像与机会点。",
+    S21:"建立伙伴评估模型（资质/能力/互补性），输出评估报告。",
+    S22:"管理伙伴全生命周期（引入/协作/考核/退出）。",
+    S23:"识别风险因子并量化风险等级，输出风险清单。",
+    S24:"持续监测风险指标，触发预警并生成应对预案。",
+    S25:"基于工单数据评估支持响应质量与满意度。",
+    S26:"知识的采集、去重、标签化与检索分发。",
+    S31:"生成结构化商业计划书（市场/产品/财务/风险）。",
+    S32:"产出产品定位、卖点与包装物料。",
+    S33:"制作宣传册、介绍页等对外材料。",
+    S34:"生成多渠道推广文案与传播素材。",
+    S41:"解析飞书文档/进程信息，抽取结构化要点。",
+    S42:"从会议记录生成纪要与待办事项。",
+    S43:"读写产品管理平台的需求数据与状态。",
+    S44:"从 FineBI 拉取指标数据并解读。",
+    S45:"读取测试执行与缺陷数据。",
+    "知识库":"结构化沉淀产品知识文档、飞书进程信息与经治理的个人经验，支持标签检索。",
+    "数据库":"汇聚产品管理平台、工单系统、FineBI 的结构化业务数据。",
+    "skills库":"技能定义、版本与调用统计的存储，由 Skills 层运行沉淀。",
+    "产品知识文档":"PRD、白皮书、FAQ 等产品文档源。",
+    "产品管理平台":"需求、迭代与版本状态数据源。",
+    "工单系统":"客服与产品支持工单数据源。",
+    "FineBI":"BI 指标与大屏数据源。",
+    "飞书进程信息":"飞书文档、会议与审批等协作过程信息源。",
+    "个人经验":"个人经验沉淀，须经评审治理后入库。",
+  },
+};
+
+/* ================================ 渲染 ================================ */
+const $  = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const diagram = $("#diagram"), svg = $("#linkSvg");
+
+const AGENTS = {}, SKILLS = {};
+DATA.modules.forEach(m => m.agents.forEach(a => { a.module = m.key; AGENTS[a.id] = a; }));
+DATA.skillCats.forEach(c => c.skills.forEach(s => { s.cat = c.key; SKILLS[s.id] = s; }));
+
+function makeNode(id, badge, name, cls, styleVar, extraHTML=""){
+  const n = document.createElement("div");
+  n.className = "node " + cls;
+  n.dataset.id = id;
+  if (styleVar) n.style.setProperty("--mc", styleVar);
+  n.innerHTML = `<span class="badge">${badge}</span><span class="nname">${name}</span>` + extraHTML;
+  return n;
+}
+
+function render(){
+  /* 第 2 层：5 个模块分组 */
+  const mrow = $("#modulesRow");
+  DATA.modules.forEach(m => {
+    const g = document.createElement("div");
+    g.className = "module";
+    g.dataset.id = "mod-" + m.key;
+    g.style.setProperty("--mc", `var(--${m.key})`);
+    g.style.setProperty("--mcolor", `var(--${m.key})`);
+    g.innerHTML = `<div class="module-title">${m.name}<span>${m.agents.length} 个智能体</span></div>`;
+    const box = document.createElement("div");
+    box.className = "module-agents";
+    m.agents.forEach(a => {
+      const n = makeNode(a.id, a.id, a.name, "n-agent", `var(--${m.key})`);
+      box.appendChild(n);
+    });
+    g.appendChild(box);
+    mrow.appendChild(g);
+  });
+
+  /* 第 3 层：4 个技能类别 */
+  const crow = $("#catsRow");
+  DATA.skillCats.forEach(c => {
+    const g = document.createElement("div");
+    g.className = "skillcat";
+    g.dataset.id = "cat-" + c.key;
+    g.style.setProperty("--sc", `var(--${c.key})`);
+    g.style.flex = c.skills.length; // 按技能数量分配宽度
+    g.innerHTML = `<div class="skillcat-title">${c.name}<span>${c.skills.length} 项</span></div>`;
+    const box = document.createElement("div");
+    box.className = "skillgrid" + (c.skills.length <= 3 ? " wide3" : "");
+    c.skills.forEach(s => box.appendChild(makeNode(s.id, s.id, s.name, "n-skill", `var(--${c.key})`)));
+    g.appendChild(box);
+    crow.appendChild(g);
+  });
+
+  /* 第 4 层：三大库 + 六大来源 */
+  const lrow = $("#libsRow");
+  DATA.libraries.forEach(l => {
+    const n = makeNode(l.id, "LIB", l.id, "n-library", null, `<span class="libsub">${l.sub}</span>`);
+    lrow.appendChild(n);
+  });
+  const srow = $("#sourcesRow");
+  DATA.sources.forEach(s => {
+    const n = makeNode(s.id, "SRC", s.id, "n-source", null, `<span class="stype">${s.type}</span>`);
+    srow.appendChild(n);
+  });
+
+  /* 图例 */
+  const lm = $("#legendModules");
+  DATA.modules.forEach(m => {
+    lm.innerHTML += `<span class="lg"><i style="background:var(--${m.key})"></i>${m.name}</span>`;
+  });
+  const lc = $("#legendCats");
+  DATA.skillCats.forEach(c => {
+    lc.innerHTML += `<span class="lg"><i style="background:var(--${c.key})"></i>${c.name}</span>`;
+  });
+
+  /* 事件绑定 */
+  $$(".node").forEach(n => {
+    n.addEventListener("mouseenter", () => { if (!pinned) focus(n.dataset.id); });
+    n.addEventListener("mouseleave", () => { if (!pinned) clearFocus(); });
+    n.addEventListener("click", ev => { ev.stopPropagation(); openPanel(n.dataset.id); });
+  });
+}
+
+/* ================================ 连线 ================================ */
+let LINKS = [], linkEls = [];
+const linkIndex = {};
+
+function buildLinks(){
+  const push = (type, from, to) => {
+    linkIndex[from + ">" + to] = LINKS.length;
+    LINKS.push({ type, from, to });
+  };
+  DATA.modules.forEach(m => push("lead", "A0", "mod-" + m.key));
+  DATA.modules.forEach(m => m.agents.forEach(a => a.skills.forEach(s => push("skill", a.id, s))));
+  DATA.skillCats.forEach(c => c.skills.forEach(s => s.libs.forEach(l => push("lib", s.id, l))));
+  Object.entries(DATA.libSources).forEach(([lib, srcs]) => srcs.forEach(s => push("src", s, lib)));
+  push("dep", "skillsLayer", "skills库");
+}
+
+function anchor(el, side){
+  const r = el.getBoundingClientRect(), c = diagram.getBoundingClientRect();
+  return [ r.left + r.width / 2 - c.left, side === "bottom" ? r.bottom - c.top : r.top - c.top ];
+}
+
+function drawLinks(){
+  svg.setAttribute("viewBox", `0 0 ${diagram.scrollWidth} ${diagram.scrollHeight}`);
+  svg.innerHTML = ""; linkEls = [];
+  LINKS.forEach(l => {
+    const fe = document.querySelector(`[data-id="${l.from}"]`);
+    const te = document.querySelector(`[data-id="${l.to}"]`);
+    if (!fe || !te) return;
+    const fr = fe.getBoundingClientRect(), tr = te.getBoundingClientRect();
+    const downward = (fr.top + fr.height / 2) <= (tr.top + tr.height / 2);
+    const [x1, y1] = anchor(fe, downward ? "bottom" : "top");
+    const [x2, y2] = anchor(te, downward ? "top" : "bottom");
+    const dy = (y2 - y1) * 0.45;
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`);
+    p.setAttribute("class", "lk lk-" + l.type);
+    svg.appendChild(p);
+    linkEls.push(p);
+  });
+}
+
+/* ============================ 关系索引 ============================ */
+const skillAgents = {}, libSkills = {}, sourceLib = {};
+Object.values(AGENTS).forEach(a => a.skills.forEach(s => (skillAgents[s] = skillAgents[s] || []).push(a.id)));
+Object.values(SKILLS).forEach(s => s.libs.forEach(l => (libSkills[l] = libSkills[l] || []).push(s.id)));
+DATA.libraries.forEach(l => { libSkills[l.id] = libSkills[l.id] || []; }); // skills库 无技能依赖，也需初始化
+Object.entries(DATA.libSources).forEach(([lib, srcs]) => srcs.forEach(s => (sourceLib[s] = lib)));
+
+function linkBetween(a, b){ const i = linkIndex[a + ">" + b]; return i === undefined ? null : i; }
+
+/* 计算聚焦集合：节点 + 连线索引 */
+function focusSet(id){
+  const nodes = new Set([id]), links = new Set();
+  const tie = (a, b) => { const i = linkBetween(a, b); if (i !== null) links.add(i); };
+
+  if (id === "A0"){
+    DATA.modules.forEach(m => { nodes.add("mod-" + m.key); tie("A0", "mod-" + m.key); });
+    return { nodes, links };
+  }
+  if (id === "skills库"){ links.add(linkBetween("skillsLayer", "skills库")); return { nodes, links }; }
+
+  if (AGENTS[id]){                       // Agent：向下追到来源
+    nodes.add("mod-" + AGENTS[id].module);
+    AGENTS[id].skills.forEach(s => {
+      tie(id, s); nodes.add(s);
+      SKILLS[s].libs.forEach(l => { tie(s, l); nodes.add(l);
+        DATA.libSources[l].forEach(src => { tie(src, l); nodes.add(src); });
+      });
+    });
+  } else if (SKILLS[id]){                // 技能：向上找 Agent，向下找库与来源
+    (skillAgents[id] || []).forEach(a => { tie(a, id); nodes.add(a); });
+    SKILLS[id].libs.forEach(l => { tie(id, l); nodes.add(l);
+      DATA.libSources[l].forEach(src => { tie(src, l); nodes.add(src); });
+    });
+    nodes.add("cat-" + SKILLS[id].cat); nodes.add("skillsLayer");
+  } else if (DATA.libraries.some(x => x.id === id)){   // 库：向上两级，向下找来源
+    (libSkills[id] || []).forEach(s => { tie(s, id); nodes.add(s);
+      (skillAgents[s] || []).forEach(a => { tie(a, s); nodes.add(a); });
+    });
+    DATA.libSources[id].forEach(src => { tie(src, id); nodes.add(src); });
+  } else if (sourceLib[id]){             // 来源：向上追到 Agent
+    const l = sourceLib[id]; tie(id, l); nodes.add(l);
+    (libSkills[l] || []).forEach(s => { tie(s, l); nodes.add(s);
+      (skillAgents[s] || []).forEach(a => { tie(a, s); nodes.add(a); });
+    });
+  }
+  return { nodes, links };
+}
+
+function focus(id){
+  clearFocus(false);
+  const { nodes, links } = focusSet(id);
+  $$(".node").forEach(n => n.classList.add(nodes.has(n.dataset.id) ? "hl" : "dim"));
+  $$(".module,.skillcat").forEach(g => g.classList.add(nodes.has(g.dataset.id) ? "hl" : "dim"));
+  linkEls.forEach((el, i) => el.classList.add(links.has(i) ? "hl" : "dim"));
+}
+function clearFocus(clearClasses = true){
+  if (!clearClasses) { /* 仅在重新聚焦前清理 */ }
+  $$(".node,.module,.skillcat").forEach(el => el.classList.remove("hl", "dim"));
+  linkEls.forEach(el => el.classList.remove("hl", "dim"));
+}
+
+/* ============================ 详情面板 ============================ */
+let pinned = false;
+const panel = $("#panel");
+
+function chip(id, label){
+  return `<span class="p-tag" data-goto="${id}">${label}</span>`;
+}
+function displayName(id){
+  if (AGENTS[id]) return `${id}-${AGENTS[id].name}`;
+  if (SKILLS[id]) return `${id}-${SKILLS[id].name}`;
+  return id;
+}
+function openPanel(id){
+  pinned = true; focus(id); panel.classList.add("open");
+  $("#pId").textContent = idOf(id); $("#pName").textContent = nameOf(id);
+  let html = "";
+  const d = DATA.desc[id] || "";
+  html += `<div class="p-sec"><h4>职责描述</h4><div class="p-desc">${d}</div></div>`;
+
+  if (id === "A0"){
+    html += `<div class="p-sec"><h4>协调的模块（5）</h4>` +
+      DATA.modules.map(m => chip("mod-" + m.key, m.name)).join("") + `</div>` +
+      `<div class="p-sec"><h4>管理的子 Agent（16）</h4>` +
+      Object.keys(AGENTS).map(a => chip(a, displayName(a))).join("") + `</div>`;
+  } else if (AGENTS[id]){
+    const m = DATA.modules.find(x => x.key === AGENTS[id].module);
+    html += `<div class="p-sec"><h4>所属</h4><div>子 Agent 层 · ${m.name} 模块</div></div>` +
+      `<div class="p-sec"><h4>调用的技能（${AGENTS[id].skills.length}）</h4>` +
+      AGENTS[id].skills.map(s => chip(s, displayName(s))).join("") + `</div>`;
+  } else if (SKILLS[id]){
+    const c = DATA.skillCats.find(x => x.key === SKILLS[id].cat);
+    html += `<div class="p-sec"><h4>所属</h4><div>Skills 层 · ${c.name}</div></div>` +
+      `<div class="p-sec"><h4>被调用方（${(skillAgents[id] || []).length}）</h4>` +
+      (skillAgents[id] || []).map(a => chip(a, displayName(a))).join("") + `</div>` +
+      `<div class="p-sec"><h4>依赖的库</h4>` + SKILLS[id].libs.map(l => chip(l, l)).join("") + `</div>`;
+  } else if (libSkills[id] !== undefined){
+    html += `<div class="p-sec"><h4>所属</h4><div>数据与知识层 · 三大库</div></div>` +
+      `<div class="p-sec"><h4>汇聚的数据来源</h4>` +
+      (DATA.libSources[id] || []).map(s => chip(s, s)).join("") +
+      (id === "skills库" ? `<div class="p-desc" style="margin-top:6px">技能定义由 Skills 层运行沉淀（见虚线示意）。</div>` : "") + `</div>` +
+      `<div class="p-sec"><h4>被依赖的技能（${(libSkills[id] || []).length}）</h4>` +
+      (libSkills[id] || []).map(s => chip(s, displayName(s))).join("") + `</div>`;
+  } else if (sourceLib[id]){
+    html += `<div class="p-sec"><h4>所属</h4><div>数据与知识层 · 底层系统</div></div>` +
+      `<div class="p-sec"><h4>注入的库</h4>` + chip(sourceLib[id], sourceLib[id]) + `</div>`;
+  }
+  $("#pBody").innerHTML = html;
+  $$("#pBody .p-tag").forEach(t => t.addEventListener("click", () => openPanel(t.dataset.goto)));
+}
+function idOf(id){
+  if (id === "A0") return "A0 · LEAD AGENT";
+  if (AGENTS[id]) return id + " · 子 AGENT";
+  if (SKILLS[id]) return id + " · SKILL";
+  if (libSkills[id] !== undefined) return "LIBRARY · 三大库";
+  return "DATA SOURCE · 底层系统";
+}
+function nameOf(id){
+  if (id === "A0") return "产品大脑";
+  if (AGENTS[id]) return AGENTS[id].name;
+  if (SKILLS[id]) return SKILLS[id].name;
+  return id;
+}
+function closePanel(){ pinned = false; panel.classList.remove("open"); clearFocus(); }
+
+$("#pClose").addEventListener("click", closePanel);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closePanel(); });
+document.addEventListener("click", e => { if (!e.target.closest(".node") && !e.target.closest("#panel")) { if (pinned) closePanel(); } });
+
+/* ============================ 工具栏 ============================ */
+$("#btnAll").addEventListener("click", function(){
+  document.body.classList.toggle("all-links"); this.classList.toggle("active");
+});
+$("#btnFlow").addEventListener("click", function(){
+  document.body.classList.toggle("flow"); this.classList.toggle("active");
+});
+$("#btnReset").addEventListener("click", () => {
+  document.body.classList.remove("all-links", "flow");
+  $("#btnAll").classList.remove("active"); $("#btnFlow").classList.remove("active");
+  $("#searchBox").value = ""; applySearch(""); closePanel();
+});
+
+/* 搜索过滤 */
+function applySearch(q){
+  q = q.trim().toLowerCase();
+  $$(".node").forEach(n => {
+    const hit = !q || (n.dataset.id + " " + n.textContent).toLowerCase().includes(q);
+    n.classList.toggle("dim", !hit && q !== "");
+  });
+}
+$("#searchBox").addEventListener("input", e => applySearch(e.target.value));
+
+/* 窗口缩放时重算连线 */
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(drawLinks, 150);
+});
+
+/* ============================ 启动 ============================ */
+render();
+buildLinks();
+requestAnimationFrame(() => { drawLinks(); setTimeout(drawLinks, 300); });
+</script>
+</body>
+</html>
