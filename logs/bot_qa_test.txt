@@ -1,0 +1,177 @@
+Local @bot Q&A test (no Feishu messages sent)
+workflow_configured=True
+hybrid_enabled=1
+
+============================================================
+QUERY: (empty)
+RESULT: skip (empty query -> bot would ask for keywords)
+
+============================================================
+QUERY: 请推荐大湾区科技展会
+match_mode=and
+events=15
+cache_total_in_window=57
+reply_chars=687
+--- reply preview ---
+为您找到以下大湾区科技相关展会（未来约4个月）：
+
+科技展会
+
+🎯 香港電腦通訊節 2026
+📅 2026-08-21 - 2026-08-24
+📍 地点待定
+规模盛大的电脑、通讯及创新科技展，可体验前沿电子产品。
+https://www.discoverhongkong.com/tc/events/event.id87122.%E9%A6%99%E6%B8%AF%E9%9B%BB%E8%85%A6%E9%80%9A%E8%A8%8A%E7%AF%80-2026.html
+
+融合科技的商贸展会
+
+🎯 香港貿發局美食商貿博覽2026
+📅 8月12-15日
+📍 香港
+HKTDC EXHIBITION+线上线下混合模式，含AI商务配对。
+https://www.hktdc.com/event/foodexpopro/en
+
+🎯 香港貿發局香港國際茶展 2026
+📅 8月12-15日
+📍 香港
+食品饮料行业展会，含线上环节与科技应用。
+https://www.hktdc.com/event/hkteafair
+
+🎯 香港貿發局香港鐘表展 2026
+📅 8月31日-9月5日
+📍 香港
+全球最大钟表展之一，含线上环节，科技制造可对接。
+https://www.hktdc.com/event/hkwatchfair
+
+---
+💡 如需 AI 深度分析参展/商机策略，请回复「分析」并补充公司方向，例如：
+「分析 我们是一家做电子通信的企业，想重点布局香港市场，请给参展建议。」
+AI 将基于以上活动为你生成：活动价值评估、行业趋势洞察、参展建议、商机对接建议、行动清单。
+
+top_events:
+  1. [hktdc] 香港貿發局美食商貿博覽2026
+  2. [hktdc] 香港貿發局香港國際茶展 2026
+  3. [discoverhongkong] 香港電腦通訊節 2026
+
+============================================================
+QUERY: 数据中心 算力
+match_mode=and_rerank
+events=15
+cache_total_in_window=57
+reply_chars=818
+--- reply preview ---
+为您找到以下与「数据中心 算力」相关的大湾区活动：
+
+科技/算力
+
+🎯 Kimi K3 开发者因计算限制暂停新订阅
+📅 发布时间:2026-07-20 14:30
+📍 线上报道
+AI算力紧缺信号，关注芯片与数据中心配套商机。
+https://www.scmp.com/tech/article/3361172/kimi-k3-developer-suspends-new-subscriptions-amid-compute-constraints
+
+🎯 需要警惕技术威胁和投资者对人工智能的热情
+📅 发布时间:2026-07-20 06:45
+📍 香港/中国内地
+AI与量子计算安全议题升温，可对接合规与算力服务需求。
+https://www.scmp.com/opinion/comment/article/3360906/caution-warranted-over-tech-threat-investors-ai-exuberance
+
+大湾区活动
+
+🎯 GoGBA大灣區商務考察團- 深圳
+📅 7月21-22日
+📍 中國內地
+金融科技与IT服务考察，挖掘深圳数据中心及算力合作机会。
+https://info.hktdc.com/edm/2026Q2/204644/index_m.html
+
+🎯 [數碼學堂] 中小企挑選AI終極指南 揀啱工具事半功倍
+📅 7月30-31日
+📍 香港
+中小企业AI工具选型需求旺盛，可推广算力与云服务方案。
+https://home.hktdc.com/en/factsheet/FS-g6vnIi5c_DA_Webinar_0731
+
+---
+💡 如需 AI 深度分析参展/商机策略，请回复「分析」并补充公司方向，例如：
+「分析 我们是一家做电子通信的企业，想重点布局香港市场，请给参展建议。」
+AI 将基于以上活动为你生成：活动价值评估、行业趋势洞察
+...(truncated)
+
+top_events:
+  1. [scmp] Kimi K3 开发者因计算限制暂停新订阅
+  2. [scmp] 弥合分歧：人工智能科学家如何在地缘政治分歧日益扩大的情况下团结起来
+  3. [scmp] 需要警惕技术威胁和投资者对人工智能的热情
+
+============================================================
+QUERY: 养老 健康
+match_mode=and
+events=3
+cache_total_in_window=57
+reply_chars=528
+--- reply preview ---
+为您找到3场与「养老 健康」相关的产业活动：
+
+🎯 國際現代化中醫藥及健康產品會議 2026
+📅 8月12-15日
+📍 香港
+HKTDC主办，聚焦中医药现代化与大健康产品出海
+https://www.hktdc.com/event/icmcm/en
+
+🎯 2026第十届中国（广州）养老健康产业博览会
+📅 2026/08/21 ~ 08/23
+📍 广东省广州市海珠区阅江中路380号
+广州老博会，覆盖养老健康全产业链
+https://www.zhandaren.com/exhibition/info?id=S01KB1XT6WH7HXWJT3M0F7PNY7N
+
+🎯 德國杜塞爾多夫醫療用品展2026
+📅 11月15-19日
+📍 德國
+HKTDC香港馆，医疗器械及养老服务出海欧洲
+https://home.hktdc.com/en/factsheet/FS-ENtOiZgh_MEDICA2026
+
+---
+💡 如需 AI 深度分析参展/商机策略，请回复「分析」并补充公司方向，例如：
+「分析 我们是一家做电子通信的企业，想重点布局香港市场，请给参展建议。」
+AI 将基于以上活动为你生成：活动价值评估、行业趋势洞察、参展建议、商机对接建议、行动清单。
+
+top_events:
+  1. [hktdc] 國際現代化中醫藥及健康產品會議 2026
+  2. [zhandaren] 2026第十届中国（广州）养老健康产业博览会
+  3. [hktdc] 德國杜塞爾多夫醫療用品展2026
+
+============================================================
+QUERY: 香港书展
+match_mode=or_relaxed_rerank
+events=15
+cache_total_in_window=57
+reply_chars=599
+--- reply preview ---
+未找到同时满足全部关键词的活动，以下为部分相关结果：
+
+为您找到最接近「香港书展」的香港文化展会：
+
+🎯 2026第27屆香港動漫電玩節
+📅 2026-07-24 - 2026-07-28
+📍 地点待定
+香港暑期大型流行文化展，新增舞台及ComixPop本地漫画家专区，汇聚潮巨匠艺术玩具展与亚太区Cosplay嘉年华，适合出版、IP授权、文创周边品牌对接客流与渠道。
+https://www.discoverhongkong.com/tc/events/event.id86862.2026%E7%AC%AC27%E5%B1%86%E9%A6%99%E6%B8%AF%E5%8B%95%E6%BC%AB%E9%9B%BB%E7%8E%A9%E7%AF%80.html
+
+补充说明：当前大湾区活动库未来4个月内未直接收录「香港书展」。该动漫电玩节与书展同属香港暑期文化消费旺季，是图书出版、教育文化、动漫IP相关方可关注的替代场景。若您目标明确为书展或教育展会，建议换关键词如「教育」「出版」「香港展会」再检索，或补充公司方向以便做商机分析。
+
+---
+💡 如需 AI 深度分析参展/商机策略，请回复「分析」并补充公司方向，例如：
+「分析 我们是一家做电子通信的企业，想重点布局香港市场，请给参展建议。」
+AI 将基于以上活动为你生成：活动价值评估、行业趋势洞察、参展建议、商机对接建议、行动清单。
+
+top_events:
+  1. [scmp] 凌晨 3 点点心和珍珠奶茶：球迷挤满香港商场观看世界杯决赛
+  2. [scmp] 香港五年计划将以治理和愿景支撑市场
+  3. [discoverhongkong] 2026第27屆香港動漫電玩節
+
+============================================================
+QUERY: 本周有什么活动
+match_mode=none
+events=0
+cache_total_in_window=15
+reply_chars=90
+--- reply preview ---
+抱歉，在今天起 14 天内的大湾区活动库中，暂未找到与「本周有什么活动」相关的产业商机资讯。当前库内该时间窗共 15 条活动。请换个关键词试试，例如：科技、展会、深圳、养老、AI。

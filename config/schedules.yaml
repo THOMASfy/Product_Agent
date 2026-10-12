@@ -1,0 +1,33 @@
+# 定时群发配置
+# cron 表达式格式：分 时 日 月 周（APScheduler CronTrigger）
+# 示例：每周一 9:30 发送 -> "30 9 * * mon"
+
+schedules:
+  # 大湾区商机：活动优先（HKTDC/展大人/香港活动），新闻（SCMP）靠后补足
+  - name: weekly-hk-events
+    enabled: true
+    cron: "00 10 * * mon"
+    chat_ids:
+      - oc_1bc0ecdeeb1a349555b283e3da0ca3a0
+    message:
+      type: events
+      sources:
+        - hktdc
+        - zhandaren
+        - discoverhongkong
+        - scmp
+      priority_sources: true
+      # SCMP：按主题分桶抓取（科技/出海/内地香港/中小企业/央企国企/教育/民生），自动排除财经商业
+      scmp_translate: true
+      scmp_per_query: 8
+      search_results: 20
+      start_after_days: 0   # 含近期活动；问句「本周」等会进一步收窄
+      days_ahead: 120         # 检索/抓取窗口约 4 个月
+      max_items: 15
+      only_new: true
+      header: "【大湾区活动 · 每周推送】"
+      empty_text: "本周暂无新活动。"
+      footer_link:
+        text: "有意向请编辑商机意向表"
+        url: "https://cmhk-try.feishu.cn/share/base/form/shrcnROWQNln6zz4DGOPzdPEAfh"
+        emphasis: heading
