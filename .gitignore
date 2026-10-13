@@ -1,20 +1,32 @@
-# 依赖
+# 依赖 / 构建产物
 node_modules/
 **/node_modules/
+dist/
+build/
 
 # 环境变量与本地密钥（真实值不入库；示例见 connect_to_feishu/.env.example）
 .env
 .env.*
 !.env.example
 *.local
+*.pem
 
 # OpenCode 本地配置（含真实密钥）；
 # 仓库里提交的是 opencode.jsonc.example，请复制为 opencode.jsonc 并填入密钥。
 opencode.jsonc
 
+# OpenCode 本地运行时
+.opencode/cache/
+.opencode/logs/
+
 # 日志
 *.log
 npm-debug.log*
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
 
 # 操作系统
 .DS_Store

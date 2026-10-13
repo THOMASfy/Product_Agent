@@ -1,0 +1,7 @@
+{
+  // 产品管理系统 · 多 Agent 平台（OpenCode 原生实现）
+  // A0-产品大脑（pm-brain）为主 Agent，pm-a* 为子 Agent，s* 为技能。
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "pm-brain",
+  "model": "myapi/deepseek-v4-free#medium"
+}
