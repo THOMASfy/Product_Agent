@@ -1,0 +1,6 @@
+# 真实用户数据（含 open_id、姓名、部门、聊天记录）不纳入版本管理
+# 注意：_index.json 也含真实姓名与 open_id，因此同样忽略。
+user/*
+!user/_template/
+!user/_template/**
+!user/README.md

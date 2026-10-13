@@ -1,0 +1,88 @@
+{
+  // PLM（产品生命周期管理）多智能体配置示例。
+  // 使用方式：复制本文件为 opencode.jsonc，并按需填入/设置环境变量。
+  // 密钥通过 {env:NAME} 从环境变量读取，避免明文写入版本库。
+  "$schema": "https://opencode.ai/config.json",
+
+  // 默认主智能体。这里是默认模型；单个 agent 可用自己文件里的 model 覆盖。
+  "default_agent": "plm-supervisor",
+  "model": "myapi/deepseek-v4-free#medium",
+
+  // 模型提供方。
+  "providers": {
+    "myapi": {
+      "name": "Company Internal LLM",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://10.0.62.177:4000/v1",
+        "apiKey": "{env:LLM_API_KEY}"
+      },
+      "models": {
+        "deepseek-v4-free": {
+          "name": "Product Agent Chat",
+          "variants": [{ "id": "medium" }, { "id": "high" }]
+        }
+      }
+    },
+    "company-internal": {
+      "name": "Company Internal LLM",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://10.0.62.177:4000/v1",
+        "apiKey": "{env:LLM_API_KEY}"
+      },
+      "models": {
+        "deepseek-v4-free": {
+          "name": "Product Agent Chat"
+        }
+      }
+    }
+  },
+
+  // 飞书官方 OpenAPI MCP：让 agent 直接读写飞书云文档/知识库/多维表格等。
+  // 用用户身份(user_access_token)，因此能读取“机器人无权限、但你有权限”的文档。
+  // 首次使用需在终端完成一次登录（浏览器授权）：
+  //   npx -y @larksuiteoapi/lark-mcp login -a <app_id> -s <app_secret>
+  // 之后用 `opencode mcp list` 查看连接状态。
+  "mcp": {
+    "servers": {
+      "lark": {
+        "type": "local",
+        // Windows 下通过 cmd 启动 npx，避免找不到 npx.cmd。
+        "command": [
+          "cmd", "/c", "npx", "-y", "@larksuiteoapi/lark-mcp", "mcp",
+          "-a", "{env:FEISHU_APP_ID}",
+          "-s", "{env:FEISHU_APP_SECRET}",
+          "--oauth", "--token-mode", "user_access_token"
+        ]
+      }
+    }
+  },
+
+  // 全局权限（先于各 agent 规则生效）：
+  // 默认对所有 agent 隐藏 business-plan 与 docgen skill；仅对应 agent 在自身文件里重新放行。
+  "permissions": [
+    { "action": "skill", "resource": "business-plan", "effect": "deny" },
+    { "action": "skill", "resource": "docgen", "effect": "deny" }
+  ],
+
+  // 上下文管理：每个用户对应一个长期 session，历史会持续增长。
+  // 开启自动压缩控制上下文窗口，并至少保留最近 15000 tokens 的原文。
+  "compaction": {
+    "auto": true,
+    "keep": { "tokens": 15000 }
+  },
+
+  // 各 agent 的安全兜底；更细的规则见 .opencode/agents/*.md。
+  "agents": {
+    // 兜底：禁止修改代码/配置、禁止 shell；子智能体只允许 plm-*。
+    "plm-supervisor": {
+      "permissions": [
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "shell", "resource": "*", "effect": "deny" },
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "subagent", "resource": "plm-*", "effect": "allow" }
+      ]
+    }
+  }
+}
