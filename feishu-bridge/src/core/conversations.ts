@@ -70,6 +70,20 @@ const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 const TURN_TIMEOUT_MS = 30 * 60 * 1000
 
 /**
+ * Placeholder forms the Lark SDK inserts for non-text resources:
+ * `![image](imageKey)` for images and self-closing tags such as
+ * `<file key="..." name="..."/>`, `<audio .../>`, `<video .../>`,
+ * `<sticker .../>`, `<folder .../>`. They must be removed before deciding
+ * whether a message carries an actual text instruction, otherwise a file-only
+ * message looks like a text prompt and is sent to the agent immediately.
+ */
+const RESOURCE_PLACEHOLDER = /!\[[^\]]*\]\([^)]*\)|<(?:file|audio|video|media|sticker|folder)\b[^>]*\/?>/gi
+
+function stripResourcePlaceholders(input: string): string {
+  return input.replace(RESOURCE_PLACEHOLDER, "").trim()
+}
+
+/**
  * Orchestrates the lifecycle of a conversation: binding a Feishu chat to an
  * OpenCode session, forwarding prompts, streaming the reply into a card, and
  * delivering files the agent produced.
@@ -139,9 +153,11 @@ export class ConversationService {
 
   async handleMessage(bot: FeishuBot, msg: NormalizedMessage): Promise<void> {
     const rawText = (msg.content ?? "").trim()
-    // Drop the `![image](fileKey)` placeholders the normalizer inserts for media
-    // resources; the actual files are attached separately.
-    const text = rawText.replace(/!\[[^\]]*\]\([^)]*\)/g, "").trim()
+    // Drop the placeholders the Lark normalizer inserts for media resources
+    // (images and file/audio/video/sticker tags); the actual files are
+    // downloaded and attached separately. Without this a file-only message
+    // looks like a text instruction and is sent to the agent right away.
+    const text = stripResourcePlaceholders(rawText)
     if (!rawText && msg.resources.length === 0) return
     this.deps.audit.record("feishu.message", {
       bot: bot.name,
