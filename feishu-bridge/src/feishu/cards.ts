@@ -93,98 +93,68 @@ function optionsOf(field: FormField): { value: string; label: string }[] {
 /**
  * Render an OpenCode form (the AI asking a question) as an interactive card.
  * Choice fields become buttons; free-form fields instruct a text fallback.
- *
- * With `opts.submitted` the card becomes a read-only record of the answers —
- * the questions and selections are kept, but all controls (option buttons and
- * the submit button) are removed.
  */
-export function formCard(
-  form: FormInfo,
-  answers: Record<string, unknown>,
-  opts: { submitted?: boolean } = {},
-): object {
-  const submitted = opts.submitted === true
+export function formCard(form: FormInfo, answers: Record<string, unknown>): object {
   const elements: object[] = []
   if (form.metadata && typeof form.metadata === "object" && "description" in form.metadata) {
     elements.push({ tag: "markdown", content: escapeMarkdown(String((form.metadata as { description: unknown }).description)) })
   }
   form.fields.forEach((field, index) => {
     if (field.hidden) return
-    const header = fieldHeader(field, index)
     const answered = Object.prototype.hasOwnProperty.call(answers, field.key)
-    const stored = answers[field.key]
-    const isMulti = field.type === "multiselect"
-    let options = optionsOf(field)
-    if (field.type === "boolean" && options.length === 0) {
-      options = [
-        { value: "true", label: "是" },
-        { value: "false", label: "否" },
-      ]
-    }
-    const labelOf = (value: string) => options.find((o) => o.value === value)?.label ?? value
-
-    if (submitted) {
-      // Read-only record: keep the question and the chosen answer, no controls.
-      let line: string
-      if (isMulti) {
-        const values = Array.isArray(stored) ? stored.map(String) : []
-        line = values.length > 0 ? `已选：**${escapeMarkdown(values.map(labelOf).join("、"))}**` : "（未作答）"
-      } else if (options.length > 0) {
-        line = answered ? `已选择：**${escapeMarkdown(labelOf(String(stored)))}**` : "（未作答）"
-      } else {
-        line = answered ? `已填写：**${escapeMarkdown(String(stored))}**` : "（未作答）"
-      }
-      elements.push({ tag: "markdown", content: `${header}\n${line}` })
-      return
-    }
-
-    if (options.length > 0) {
-      const selected = isMulti
-        ? Array.isArray(stored)
-          ? stored.map(String)
-          : []
-        : answered
-          ? [String(stored)]
-          : []
-      const summary = isMulti
-        ? selected.length > 0
-          ? `\n已选：**${escapeMarkdown(selected.map(labelOf).join("、"))}**`
-          : ""
-        : selected.length > 0
-          ? `\n已选择：**${escapeMarkdown(labelOf(selected[0] ?? ""))}**`
-          : ""
+    const header = fieldHeader(field, index)
+    if (field.type === "multiselect" && optionsOf(field).length > 0) {
+      const current = Array.isArray(answers[field.key]) ? (answers[field.key] as unknown[]).map(String) : []
+      const summary = current.length > 0 ? `\n已选：**${escapeMarkdown(current.join("、"))}**` : ""
       elements.push({ tag: "markdown", content: `${header}${summary}` })
       elements.push(
         buttonRow(
-          options.map((option) => {
-            const isSelected = selected.includes(option.value)
-            // Booleans are sent back as real booleans; everything else as strings.
-            const callbackValue = field.type === "boolean" ? option.value === "true" : option.value
+          optionsOf(field).map((option) => {
+            const selected = current.includes(option.value)
             return callbackButton(
-              isSelected ? `✅ ${option.label}` : option.label,
-              { k: "form", s: form.sessionID, f: form.id, key: field.key, v: callbackValue },
-              isSelected ? "primary" : "default",
+              selected ? `✅ ${option.label}` : option.label,
+              { k: "form", s: form.sessionID, f: form.id, key: field.key, v: option.value },
+              selected ? "primary" : "default",
             )
           }),
         ),
       )
       return
     }
-    // Free-form fields have no buttons — instruct the text fallback.
+    if (answered) {
+      elements.push({ tag: "markdown", content: `${header}\n已选择：**${escapeMarkdown(String(answers[field.key]))}**` })
+      return
+    }
     elements.push({ tag: "markdown", content: header })
+    if (field.type === "boolean") {
+      elements.push(
+        buttonRow([
+          callbackButton("是", { k: "form", s: form.sessionID, f: form.id, key: field.key, v: true }, "primary"),
+          callbackButton("否", { k: "form", s: form.sessionID, f: form.id, key: field.key, v: false }, "default"),
+        ]),
+      )
+      return
+    }
+    const options = optionsOf(field)
+    if (options.length > 0) {
+      elements.push(
+        buttonRow(
+          options.map((o) =>
+            callbackButton(o.label, { k: "form", s: form.sessionID, f: form.id, key: field.key, v: o.value }),
+          ),
+        ),
+      )
+      return
+    }
     elements.push({
       tag: "markdown",
       content: `请回复：\`/answer ${form.id} ${field.key}=你的回答\``,
     })
   })
   elements.push({ tag: "hr" })
-  if (submitted) {
-    elements.push({ tag: "markdown", content: `<font color='grey'>✅ 已提交</font>`, text_size: "notation" })
-    return baseCard("❓ AI 提问", "wathet", elements)
-  }
   elements.push({
     tag: "markdown",
-    content: `<font color='grey'>表单 ${form.id} · 选好后点下方「✅ 提交」；也可用 /answer 回复</font>`,
+    content: `<font color='grey'>表单 ${form.id} · 完成后将自动提交给 AI</font>`,
     text_size: "notation",
   })
   elements.push(
