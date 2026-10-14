@@ -4,10 +4,6 @@ interface ToolState {
   detail?: string
 }
 
-/** Tools that are surfaced as their own rich UI and must not also appear in the
- * compact tool-activity line (e.g. `question` renders as the ❓ card). */
-const HIDDEN_TOOLS = new Set(["question"])
-
 /**
  * Accumulates the streaming events of a single assistant turn into the
  * Markdown that is progressively rendered in the Feishu card.
@@ -65,14 +61,12 @@ export class TurnAccumulator {
     const text = this.text
     if (text) parts.push(text)
     if (this.showTools && this.tools.size > 0) {
-      const lines = [...this.tools.values()]
-        .filter((tool) => !HIDDEN_TOOLS.has(tool.name))
-        .map((tool) => {
-          const icon = tool.status === "completed" ? "✅" : tool.status === "error" ? "❌" : "🔧"
-          const detail = tool.detail ? ` \`${truncate(tool.detail, 80)}\`` : ""
-          return `${icon} ${tool.name}${detail}`
-        })
-      if (lines.length > 0) parts.push(`---\n${lines.join("\n")}`)
+      const lines = [...this.tools.values()].map((tool) => {
+        const icon = tool.status === "completed" ? "✅" : tool.status === "error" ? "❌" : "🔧"
+        const detail = tool.detail ? ` \`${truncate(tool.detail, 80)}\`` : ""
+        return `${icon} ${tool.name}${detail}`
+      })
+      parts.push(`---\n${lines.join("\n")}`)
     }
     if (this.showReasoning && this.reasoning.trim()) {
       const quoted = this.reasoning

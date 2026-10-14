@@ -21,13 +21,6 @@ export interface InteractionDeps {
   getContext: (sessionID: string) => SessionContext | undefined
   activeSessions: () => string[]
   pollIntervalMs?: number
-  /**
-   * Delay (ms) between returning the card callback response and patching the
-   * card. Feishu requires card updates triggered by an interaction to run
-   * AFTER the callback is answered, otherwise the client reverts the update
-   * when the callback completes ("check then disappears").
-   */
-  cardUpdateDelayMs?: number
 }
 
 /**
@@ -156,38 +149,14 @@ export class InteractionService {
   // ---- card callbacks -----------------------------------------------------
 
   async handleCardAction(bot: FeishuBot, event: CardActionEvent): Promise<void> {
-    const rawAction = (event as { action?: { tag?: string; value?: unknown } }).action
-    this.deps.logger.info("Card action received", {
-      bot: bot.name,
-      chatId: event.chatId,
-      messageId: event.messageId,
-      operator: event.operator?.openId,
-      tag: rawAction?.tag,
-      value: rawAction?.value,
-    })
-    const value = parseCardValue(rawAction?.value)
-    if (!value) {
-      this.deps.logger.warn("Card action without a routable value", { value: rawAction?.value })
-      return
-    }
+    const value = event.action.value as CardValue | undefined
+    if (!value || typeof value !== "object" || !("k" in value)) return
     this.deps.audit.record("card.action", {
       bot: bot.name,
       chatId: event.chatId,
-      operator: event.operator?.openId,
+      operator: event.operator.openId,
       kind: value.k,
     })
-    // Feishu requires the callback to be answered within 3s and the card update
-    // to happen AFTER that answer, otherwise the client reverts any change we
-    // make during the callback. Return now; patch the card shortly after.
-    const delay = this.deps.cardUpdateDelayMs ?? 400
-    setTimeout(() => {
-      void this.processCardAction(bot, event, value).catch((error) => {
-        this.deps.logger.warn("Card action processing failed", { error: message(error) })
-      })
-    }, delay)
-  }
-
-  private async processCardAction(bot: FeishuBot, event: CardActionEvent, value: CardValue): Promise<void> {
     if (value.k === "perm" && value.s && value.r && value.d) {
       await this.resolvePermission(bot, event, value.s, value.r, value.d as "once" | "always" | "reject")
     } else if (value.k === "form" && value.s && value.f) {
@@ -215,12 +184,7 @@ export class InteractionService {
   }
 
   private async resolveFormAction(bot: FeishuBot, event: CardActionEvent, value: CardValue): Promise<void> {
-    let pending = value.f ? this.pendingForms.get(value.f) : undefined
-    // The form may have been sent before a restart (in-memory state lost) — try
-    // to rebuild it from OpenCode's still-pending form list.
-    if (!pending && value.f && value.s) {
-      pending = await this.rehydrateForm(bot, event, value.s, value.f)
-    }
+    const pending = value.f ? this.pendingForms.get(value.f) : undefined
     if (!pending) {
       await bot.sendText(event.chatId, "该问题已结束或不存在。")
       return
@@ -229,49 +193,19 @@ export class InteractionService {
       const field = pending.form.fields.find((f) => f.key === value.key)
       if (field?.type === "multiselect") {
         // Toggle selection; submission happens via the explicit submit button.
-        const current = Array.isArray(pending.answers[value.key]) ? [...(pending.answers[value.key] as string[])] : []
-        const next = String(value.v)
+        const current = Array.isArray(pending.answers[value.key]) ? (pending.answers[value.key] as string[]) : []
+        const next = typeof value.v === "string" || typeof value.v === "number" ? String(value.v) : String(value.v)
         const index = current.indexOf(next)
         if (index >= 0) current.splice(index, 1)
         else current.push(next)
         pending.answers[value.key] = current
-      } else {
-        pending.answers[value.key] = normaliseAnswer(value.v)
+        await this.refreshFormCard(bot, pending)
+        return
       }
-      // Selecting an option never submits on its own — the user confirms with
-      // the "✅ 提交" button so they can see and adjust their choices first.
-      await this.refreshFormCard(bot, pending)
-      return
+      pending.answers[value.key] = normaliseAnswer(value.v)
     }
-    // No key => the explicit submit button.
-    const submitted = await this.maybeSubmit(bot, event.chatId, pending)
+    const submitted = await this.maybeSubmit(bot, event.chatId, pending, value.key === undefined)
     if (!submitted) await this.refreshFormCard(bot, pending)
-  }
-
-  /** Rebuild a pending form from OpenCode after a restart cleared in-memory state. */
-  private async rehydrateForm(
-    bot: FeishuBot,
-    event: CardActionEvent,
-    sessionID: string,
-    formID: string,
-  ): Promise<PendingForm | undefined> {
-    try {
-      const client = await this.deps.getClient()
-      const forms = await client.pendingForms(sessionID)
-      const form = forms.find((f) => f.id === formID)
-      if (!form) return undefined
-      const context: SessionContext = this.deps.getContext(sessionID) ?? {
-        botName: bot.name,
-        chatId: event.chatId,
-        replyTo: event.messageId,
-      }
-      const pending: PendingForm = { form, answers: {}, context, messageId: event.messageId }
-      this.pendingForms.set(form.id, pending)
-      return pending
-    } catch (error) {
-      this.deps.logger.debug("Failed to rehydrate pending form", { sessionID, formID, error: message(error) })
-      return undefined
-    }
   }
 
   /** Handle `/answer <formId?> key=value ...` from a chat. */
@@ -303,65 +237,52 @@ export class InteractionService {
     if (applied.length === 0) return "格式应为：/answer key=value（可多组，用空格分隔）"
     const bot = this.deps.getBot(pending.context.botName)
     if (!bot) return "找不到对应的机器人。"
-    const submitted = await this.maybeSubmit(bot, pending.context.chatId, pending)
+    const submitted = await this.maybeSubmit(bot, pending.context.chatId, pending, true)
     if (!submitted) await this.refreshFormCard(bot, pending)
-    return submitted ? `已提交回答：${applied.join(", ")}` : `已记录：${applied.join(", ")}（缺少必填项，尚未提交）`
+    return submitted ? `已提交回答：${applied.join(", ")}` : `已记录：${applied.join(", ")}`
   }
 
   /**
-   * Submit a form. Only runs on an explicit user action (the submit button or
-   * `/answer`) — option clicks merely record the choice. Required fields must be
-   * answered or the user is told which are missing.
+   * Attempt to submit. When `force` is false the form auto-submits only once
+   * every field has an answer; when true it submits only if required fields are
+   * satisfied.
    */
-  private async maybeSubmit(bot: FeishuBot, chatId: string, pending: PendingForm): Promise<boolean> {
+  private async maybeSubmit(bot: FeishuBot, chatId: string, pending: PendingForm, force: boolean): Promise<boolean> {
     const visible = pending.form.fields.filter((f) => !f.hidden && f.type !== "external")
     const answered = (f: FormField) => Object.prototype.hasOwnProperty.call(pending.answers, f.key)
-    const missing = visible.filter((f) => f.required && !answered(f)).map((f) => f.title ?? f.key)
-    if (missing.length > 0) {
+    const allAnswered = visible.every(answered)
+    const requiredOk = visible.filter((f) => f.required).every(answered)
+    if (!force && !allAnswered) return false
+    if (force && !requiredOk) {
+      const missing = visible.filter((f) => f.required && !answered(f)).map((f) => f.key)
       await bot.sendText(chatId, `以下必填项尚未回答：${missing.join(", ")}`)
-      return false
+      return true
     }
     const client = await this.deps.getClient()
     await client.replyForm(pending.form.sessionID, pending.form.id, pending.answers)
     this.pendingForms.delete(pending.form.id)
     this.deps.audit.record("form.replied", { formID: pending.form.id, answers: pending.answers })
     if (pending.messageId) {
-      // Keep the Q&A card as a record: show the questions and chosen answers,
-      // but drop the option buttons and the submit button.
+      const summary = Object.entries(pending.answers)
+        .map(([k, v]) => `- **${k}**：${Array.isArray(v) ? v.join(", ") : v}`)
+        .join("\n")
       try {
-        await bot.updateCard(pending.messageId, formCard(pending.form, pending.answers, { submitted: true }))
-      } catch (error) {
-        this.deps.logger.warn("Failed to mark form card submitted", { formID: pending.form.id, error: message(error) })
+        await bot.updateCard(pending.messageId, statusCard("✅ 已提交回答", summary, "green"))
+      } catch {
+        // card may be gone
       }
     }
     return true
   }
 
   private async refreshFormCard(bot: FeishuBot, pending: PendingForm): Promise<void> {
-    if (!pending.messageId) {
-      this.deps.logger.warn("Cannot refresh form card without a messageId", { formID: pending.form.id })
-      return
-    }
+    if (!pending.messageId) return
     try {
       await bot.updateCard(pending.messageId, formCard(pending.form, pending.answers))
     } catch (error) {
-      this.deps.logger.warn("Failed to refresh form card", { formID: pending.form.id, error: message(error) })
+      this.deps.logger.debug("Failed to refresh form card", { error: message(error) })
     }
   }
-}
-
-/** Extract a routable callback value whether it arrives as an object or JSON string. */
-function parseCardValue(raw: unknown): CardValue | undefined {
-  let value: unknown = raw
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value)
-    } catch {
-      return undefined
-    }
-  }
-  if (!value || typeof value !== "object" || !("k" in value)) return undefined
-  return value as CardValue
 }
 
 function normaliseAnswer(value: unknown): FormValue {
